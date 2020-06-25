@@ -28,9 +28,11 @@
 #include "classfile/symbolTable.hpp"
 #include "code/scopeDesc.hpp"
 #include "compiler/compileBroker.hpp"
+#include "compiler/compilerEvent.hpp"
 #include "compiler/disassembler.hpp"
 #include "interpreter/linkResolver.hpp"
 #include "interpreter/bytecodeStream.hpp"
+#include "jfr/jfrEvents.hpp"
 #include "jvmci/jvmciCompilerToVM.hpp"
 #include "jvmci/jvmciCodeInstaller.hpp"
 #include "jvmci/jvmciRuntime.hpp"
@@ -1023,7 +1025,7 @@ C2V_VMENTRY_NULL(jobject, executeHotSpotNmethod, (JNIEnv* env, jobject, jobject 
   JVMCIObject nmethod_mirror = JVMCIENV->wrap(hs_nmethod);
   nmethodLocker locker;
   nmethod* nm = JVMCIENV->get_nmethod(nmethod_mirror, locker);
-  if (nm == NULL) {
+  if (nm == NULL || !nm->is_in_use()) {
     JVMCI_THROW_NULL(InvalidInstalledCodeException);
   }
   methodHandle mh(THREAD, nm->method());
@@ -1032,7 +1034,7 @@ C2V_VMENTRY_NULL(jobject, executeHotSpotNmethod, (JNIEnv* env, jobject, jobject 
 
   JavaArgumentUnboxer jap(signature, &jca, (arrayOop) JNIHandles::resolve(args), mh->is_static());
   JavaValue result(jap.return_type());
-  jca.set_alternative_target(nm);
+  jca.set_alternative_target(Handle(THREAD, JNIHandles::resolve(nmethod_mirror.as_jobject())));
   JavaCalls::call(&result, mh, &jca, CHECK_NULL);
 
   if (jap.return_type() == T_VOID) {
@@ -1763,6 +1765,18 @@ C2V_VMENTRY(void, ensureInitialized, (JNIEnv* env, jobject, jobject jvmci_type))
   if (klass != NULL && klass->should_be_initialized()) {
     InstanceKlass* k = InstanceKlass::cast(klass);
     k->initialize(CHECK);
+  }
+C2V_END
+
+C2V_VMENTRY(void, ensureLinked, (JNIEnv* env, jobject, jobject jvmci_type))
+  if (jvmci_type == NULL) {
+    JVMCI_THROW(NullPointerException);
+  }
+
+  Klass* klass = JVMCIENV->asKlass(jvmci_type);
+  if (klass != NULL && klass->is_instance_klass()) {
+    InstanceKlass* k = InstanceKlass::cast(klass);
+    k->link_class(CHECK);
   }
 C2V_END
 
@@ -2628,6 +2642,45 @@ C2V_VMENTRY(void, callSystemExit, (JNIEnv* env, jobject, jint status))
                        CHECK);
 }
 
+C2V_VMENTRY_0(jlong, ticksNow, (JNIEnv* env, jobject))
+  return CompilerEvent::ticksNow();
+}
+
+C2V_VMENTRY_0(jint, registerCompilerPhases, (JNIEnv* env, jobject, jobjectArray jphases))
+#if INCLUDE_JFR
+  if (jphases == NULL) {
+    return -1;
+  }
+  JVMCIObjectArray phases = JVMCIENV->wrap(jphases);
+  int len = JVMCIENV->get_length(phases);
+  GrowableArray<const char*>* jvmci_phase_names = new GrowableArray<const char*>(len);
+  for (int i = 0; i < len; i++) {
+    JVMCIObject phase = JVMCIENV->get_object_at(phases, i);
+    jvmci_phase_names->append(strdup(JVMCIENV->as_utf8_string(phase)));
+  }
+  return CompilerEvent::PhaseEvent::register_phases(jvmci_phase_names);
+#else
+  return -1;
+#endif // !INCLUDE_JFR
+}
+
+C2V_VMENTRY(void, notifyCompilerPhaseEvent, (JNIEnv* env, jobject, jlong startTime, jint phase, jint compileId, jint level))
+  EventCompilerPhase event;
+  if (event.should_commit()) {
+    CompilerEvent::PhaseEvent::post(event, startTime, phase, compileId, level);
+  }
+}
+
+C2V_VMENTRY(void, notifyCompilerInliningEvent, (JNIEnv* env, jobject, jint compileId, jobject caller, jobject callee, jboolean succeeded, jstring jmessage, jint bci))
+  EventCompilerInlining event;
+  if (event.should_commit()) {
+    Method* caller_method = JVMCIENV->asMethod(caller);
+    Method* callee_method = JVMCIENV->asMethod(callee);
+    JVMCIObject message = JVMCIENV->wrap(jmessage);
+    CompilerEvent::InlineEvent::post(event, compileId, caller_method, callee_method, succeeded, JVMCIENV->as_utf8_string(message), bci);
+  }
+}
+
 #define CC (char*)  /*cast a literal from (const char*)*/
 #define FN_PTR(f) CAST_FROM_FN_PTR(void*, &(c2v_ ## f))
 
@@ -2734,6 +2787,7 @@ JNINativeMethod CompilerToVM::methods[] = {
   {CC "getInterfaces",                                CC "(" HS_RESOLVED_KLASS ")[" HS_RESOLVED_KLASS,                                      FN_PTR(getInterfaces)},
   {CC "getComponentType",                             CC "(" HS_RESOLVED_KLASS ")" HS_RESOLVED_TYPE,                                        FN_PTR(getComponentType)},
   {CC "ensureInitialized",                            CC "(" HS_RESOLVED_KLASS ")V",                                                        FN_PTR(ensureInitialized)},
+  {CC "ensureLinked",                                 CC "(" HS_RESOLVED_KLASS ")V",                                                        FN_PTR(ensureLinked)},
   {CC "getIdentityHashCode",                          CC "(" OBJECTCONSTANT ")I",                                                           FN_PTR(getIdentityHashCode)},
   {CC "isInternedString",                             CC "(" OBJECTCONSTANT ")Z",                                                           FN_PTR(isInternedString)},
   {CC "unboxPrimitive",                               CC "(" OBJECTCONSTANT ")" OBJECT,                                                     FN_PTR(unboxPrimitive)},
@@ -2775,6 +2829,10 @@ JNINativeMethod CompilerToVM::methods[] = {
   {CC "releaseFailedSpeculations",                    CC "(J)V",                                                                            FN_PTR(releaseFailedSpeculations)},
   {CC "addFailedSpeculation",                         CC "(J[B)Z",                                                                          FN_PTR(addFailedSpeculation)},
   {CC "callSystemExit",                               CC "(I)V",                                                                            FN_PTR(callSystemExit)},
+  {CC "ticksNow",                                     CC "()J",                                                                             FN_PTR(ticksNow)},
+  {CC "registerCompilerPhases",                       CC "([" STRING ")I",                                                                  FN_PTR(registerCompilerPhases)},
+  {CC "notifyCompilerPhaseEvent",                     CC "(JIII)V",                                                                         FN_PTR(notifyCompilerPhaseEvent)},
+  {CC "notifyCompilerInliningEvent",                  CC "(I" HS_RESOLVED_METHOD HS_RESOLVED_METHOD "ZLjava/lang/String;I)V",               FN_PTR(notifyCompilerInliningEvent)},
 };
 
 int CompilerToVM::methods_count() {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1996, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1996, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -517,7 +517,7 @@ public class ObjectInputStream
 
     /**
      * This method is called by trusted subclasses of ObjectInputStream that
-     + constructed ObjectInputStream using the protected no-arg constructor.
+     * constructed ObjectInputStream using the protected no-arg constructor.
      * The subclass is expected to provide an override method with the modifier
      * "final".
      *
@@ -1858,6 +1858,8 @@ public class ObjectInputStream
                 break;
             case TC_REFERENCE:
                 descriptor = (ObjectStreamClass) readHandle(unshared);
+                // Should only reference initialized class descriptors
+                descriptor.checkInitialized();
                 break;
             case TC_PROXYCLASSDESC:
                 descriptor = readProxyDesc(unshared);
@@ -2180,11 +2182,12 @@ public class ObjectInputStream
             handles.markException(passHandle, resolveEx);
         }
 
-        final boolean isRecord = cl != null && isRecord(cl) ? true : false;
+        final boolean isRecord = cl != null && isRecord(cl);
         if (isRecord) {
             assert obj == null;
             obj = readRecord(desc);
-            handles.setObject(passHandle, obj);
+            if (!unshared)
+                handles.setObject(passHandle, obj);
         } else if (desc.isExternalizable()) {
             readExternalData((Externalizable) obj, desc);
         } else {
@@ -2286,14 +2289,14 @@ public class ObjectInputStream
 
         FieldValues fieldValues = defaultReadFields(null, desc);
 
-        // retrieve the canonical constructor
-        MethodHandle ctrMH = desc.getRecordConstructor();
-
-        // bind the stream field values
-        ctrMH = RecordSupport.bindCtrValues(ctrMH, desc, fieldValues);
+        // get canonical record constructor adapted to take two arguments:
+        // - byte[] primValues
+        // - Object[] objValues
+        // and return Object
+        MethodHandle ctrMH = RecordSupport.deserializationCtr(desc);
 
         try {
-            return ctrMH.invoke();
+            return (Object) ctrMH.invokeExact(fieldValues.primValues, fieldValues.objValues);
         } catch (Exception e) {
             InvalidObjectException ioe = new InvalidObjectException(e.getMessage());
             ioe.initCause(e);

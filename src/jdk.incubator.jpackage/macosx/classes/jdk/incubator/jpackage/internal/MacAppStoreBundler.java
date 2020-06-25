@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -26,13 +26,19 @@
 package jdk.incubator.jpackage.internal;
 
 import java.io.File;
-import java.io.IOException;
 import java.text.MessageFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.ResourceBundle;
 
-import static jdk.incubator.jpackage.internal.StandardBundlerParam.*;
-import static jdk.incubator.jpackage.internal.MacAppBundler.*;
-import static jdk.incubator.jpackage.internal.OverridableResource.createResource;
+import static jdk.incubator.jpackage.internal.StandardBundlerParam.VERBOSE;
+import static jdk.incubator.jpackage.internal.StandardBundlerParam.APP_NAME;
+import static jdk.incubator.jpackage.internal.MacAppBundler.DEVELOPER_ID_APP_SIGNING_KEY;
+import static jdk.incubator.jpackage.internal.MacAppBundler.DEFAULT_ICNS_ICON;
+import static jdk.incubator.jpackage.internal.MacAppBundler.BUNDLE_ID_SIGNING_PREFIX;
 
 public class MacAppStoreBundler extends MacBaseInstallerBundler {
 
@@ -40,10 +46,6 @@ public class MacAppStoreBundler extends MacBaseInstallerBundler {
             "jdk.incubator.jpackage.internal.resources.MacResources");
 
     private static final String TEMPLATE_BUNDLE_ICON_HIDPI = "java.icns";
-    private final static String DEFAULT_ENTITLEMENTS =
-            "MacAppStore.entitlements";
-    private final static String DEFAULT_INHERIT_ENTITLEMENTS =
-            "MacAppStore_Inherit.entitlements";
 
     public static final BundlerParamInfo<String> MAC_APP_STORE_APP_SIGNING_KEY =
             new StandardBundlerParam<>(
@@ -94,13 +96,6 @@ public class MacAppStoreBundler extends MacBaseInstallerBundler {
             },
             (s, p) -> s);
 
-    public static final StandardBundlerParam<File> MAC_APP_STORE_ENTITLEMENTS  =
-            new StandardBundlerParam<>(
-            Arguments.CLIOptions.MAC_APP_STORE_ENTITLEMENTS.getId(),
-            File.class,
-            params -> null,
-            (s, p) -> new File(s));
-
     public static final BundlerParamInfo<String> INSTALLER_SUFFIX =
             new StandardBundlerParam<> (
             "mac.app-store.installerName.suffix",
@@ -133,20 +128,15 @@ public class MacAppStoreBundler extends MacBaseInstallerBundler {
             params.put(DEVELOPER_ID_APP_SIGNING_KEY.getID(), null);
             File appLocation = prepareAppBundle(params);
 
-            prepareEntitlements(params);
-
             String signingIdentity =
                     MAC_APP_STORE_APP_SIGNING_KEY.fetchFrom(params);
             String identifierPrefix =
                     BUNDLE_ID_SIGNING_PREFIX.fetchFrom(params);
-            String entitlementsFile =
-                    getConfig_Entitlements(params).toString();
-            String inheritEntitlements =
-                    getConfig_Inherit_Entitlements(params).toString();
+            MacAppImageBuilder.prepareEntitlements(params);
 
             MacAppImageBuilder.signAppBundle(params, appLocation.toPath(),
                     signingIdentity, identifierPrefix,
-                    entitlementsFile, inheritEntitlements);
+                    MacAppImageBuilder.getConfig_Entitlements(params));
             MacAppImageBuilder.restoreKeychainList(params);
 
             ProcessBuilder pb;
@@ -186,31 +176,6 @@ public class MacAppStoreBundler extends MacBaseInstallerBundler {
             Log.verbose(ex);
             throw new PackagerException(ex);
         }
-    }
-
-    private File getConfig_Entitlements(Map<String, ? super Object> params) {
-        return new File(CONFIG_ROOT.fetchFrom(params),
-                APP_NAME.fetchFrom(params) + ".entitlements");
-    }
-
-    private File getConfig_Inherit_Entitlements(
-            Map<String, ? super Object> params) {
-        return new File(CONFIG_ROOT.fetchFrom(params),
-                APP_NAME.fetchFrom(params) + "_Inherit.entitlements");
-    }
-
-    private void prepareEntitlements(Map<String, ? super Object> params)
-            throws IOException {
-        createResource(DEFAULT_ENTITLEMENTS, params)
-                .setCategory(
-                        I18N.getString("resource.mac-app-store-entitlements"))
-                .setExternal(MAC_APP_STORE_ENTITLEMENTS.fetchFrom(params))
-                .saveToFile(getConfig_Entitlements(params));
-
-        createResource(DEFAULT_INHERIT_ENTITLEMENTS, params)
-                .setCategory(I18N.getString(
-                        "resource.mac-app-store-inherit-entitlements"))
-                .saveToFile(getConfig_Entitlements(params));
     }
 
     ///////////////////////////////////////////////////////////////////////

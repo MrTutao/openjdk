@@ -104,7 +104,7 @@ import java.util.Objects;
  * determines how any discarded trailing digits affect the returned
  * result.
  *
- * <p>For all arithmetic operators , the operation is carried out as
+ * <p>For all arithmetic operators, the operation is carried out as
  * though an exact intermediate result were first calculated and then
  * rounded to the number of digits specified by the precision setting
  * (if necessary), using the selected rounding mode.  If the exact
@@ -934,7 +934,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
         // At this point, val == sign * significand * 2**exponent.
 
         /*
-         * Special case zero to supress nonterminating normalization and bogus
+         * Special case zero to suppress nonterminating normalization and bogus
          * scale calculation.
          */
         if (significand == 0) {
@@ -3025,9 +3025,9 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * this one but with any trailing zeros removed from the
      * representation.  For example, stripping the trailing zeros from
      * the {@code BigDecimal} value {@code 600.0}, which has
-     * [{@code BigInteger}, {@code scale}] components equals to
+     * [{@code BigInteger}, {@code scale}] components equal to
      * [6000, 1], yields {@code 6E2} with [{@code BigInteger},
-     * {@code scale}] components equals to [6, -2].  If
+     * {@code scale}] components equal to [6, -2].  If
      * this BigDecimal is numerically equal to zero, then
      * {@code BigDecimal.ZERO} is returned.
      *
@@ -4052,7 +4052,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
                     pows[i] = pows[i - 1].multiply(BigInteger.TEN);
                 }
                 // Based on the following facts:
-                // 1. pows is a private local varible;
+                // 1. pows is a private local variable;
                 // 2. the following store is a volatile store.
                 // the newly created array elements can be safely published.
                 BIG_TEN_POWERS_TABLE = pows;
@@ -4323,7 +4323,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
         return asInt;
     }
 
-   /**
+    /**
      * Returns the compact value for given {@code BigInteger}, or
      * INFLATED if too big. Relies on internal representation of
      * {@code BigInteger}.

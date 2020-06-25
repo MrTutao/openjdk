@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1996, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1996, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -80,8 +80,8 @@ import jdk.internal.vm.annotation.ForceInline;
  * inclusive.
  *
  * <p>Bit operations operate on a single bit of the two's-complement
- * representation of their operand.  If necessary, the operand is sign-
- * extended so that it contains the designated bit.  None of the single-bit
+ * representation of their operand.  If necessary, the operand is sign-extended
+ * so that it contains the designated bit.  None of the single-bit
  * operations can produce a BigInteger with a different sign from the
  * BigInteger being operated on, as they affect only a single bit, and the
  * arbitrarily large abstraction provided by this class ensures that conceptually
@@ -2751,7 +2751,7 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
             BigInteger base2 = (this.signum < 0 || this.compareTo(m1) >= 0
                                 ? this.mod(m1) : this);
 
-            // Caculate (base ** exponent) mod m1.
+            // Calculate (base ** exponent) mod m1.
             BigInteger a1 = (m1.equals(ONE) ? ZERO :
                              base2.oddModPow(exponent, m1));
 
@@ -2905,7 +2905,7 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
      * This means that if you have a k-bit window, to compute n^z,
      * where z is the high k bits of the exponent, 1/2 of the time
      * it requires no squarings.  1/4 of the time, it requires 1
-     * squaring, ... 1/2^(k-1) of the time, it reqires k-2 squarings.
+     * squaring, ... 1/2^(k-1) of the time, it requires k-2 squarings.
      * And the remaining 1/2^(k-1) of the time, the top k bits are a
      * 1 followed by k-1 0 bits, so it again only requires k-2
      * squarings, not k-1.  The average of these is 1.  Add that
@@ -4595,13 +4595,13 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
     }
 
     /**
-    * Returns the index of the int that contains the first nonzero int in the
-    * little-endian binary representation of the magnitude (int 0 is the
-    * least significant). If the magnitude is zero, return value is undefined.
-    *
-    * <p>Note: never used for a BigInteger with a magnitude of zero.
-    * @see #getInt.
-    */
+     * Returns the index of the int that contains the first nonzero int in the
+     * little-endian binary representation of the magnitude (int 0 is the
+     * least significant). If the magnitude is zero, return value is undefined.
+     *
+     * <p>Note: never used for a BigInteger with a magnitude of zero.
+     * @see #getInt.
+     */
     private int firstNonzeroIntNum() {
         int fn = firstNonzeroIntNumPlusTwo - 2;
         if (fn == -2) { // firstNonzeroIntNum not initialized yet

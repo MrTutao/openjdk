@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2019, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,7 +23,6 @@
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Map;
 import java.nio.file.Path;
 import java.util.List;
 import jdk.jpackage.test.AdditionalLauncher;
@@ -31,8 +30,9 @@ import jdk.jpackage.test.FileAssociations;
 import jdk.jpackage.test.PackageType;
 import jdk.jpackage.test.PackageTest;
 import jdk.jpackage.test.TKit;
+import jdk.jpackage.test.JPackageCommand;
+import jdk.jpackage.test.LinuxHelper;
 import jdk.jpackage.test.Annotations.Test;
-import jdk.jpackage.test.*;
 
 /**
  * Test --linux-shortcut parameter. Output of the test should be
@@ -91,8 +91,16 @@ public class ShortcutHintTest {
         return new PackageTest()
                 .forTypes(PackageType.LINUX)
                 .configureHelloApp()
-                .addBundleDesktopIntegrationVerifier(true);
-
+                .addBundleDesktopIntegrationVerifier(true)
+                .addInitializer(cmd -> {
+                    String defaultAppName = cmd.name();
+                    String appName = defaultAppName.replace(
+                            ShortcutHintTest.class.getSimpleName(),
+                            "Shortcut Hint  Test");
+                    cmd.setArgumentValue("--name", appName);
+                    cmd.addArguments("--linux-package-name",
+                            defaultAppName.toLowerCase());
+                });
     }
 
     /**
@@ -158,14 +166,14 @@ public class ShortcutHintTest {
                             "Exec=APPLICATION_LAUNCHER",
                             "Terminal=false",
                             "Type=Application",
+                            "Comment=",
+                            "Icon=APPLICATION_ICON",
                             "Categories=DEPLOY_BUNDLE_CATEGORY",
                             expectedVersionString
                     ));
         })
         .addInstallVerifier(cmd -> {
-            Path desktopFile = cmd.appLayout().destktopIntegrationDirectory().resolve(
-                    String.format("%s-%s.desktop",
-                            LinuxHelper.getPackageName(cmd), cmd.name()));
+            Path desktopFile = LinuxHelper.getDesktopFile(cmd);
             TKit.assertFileExists(desktopFile);
             TKit.assertTextStream(expectedVersionString)
                     .label(String.format("[%s] file", desktopFile))

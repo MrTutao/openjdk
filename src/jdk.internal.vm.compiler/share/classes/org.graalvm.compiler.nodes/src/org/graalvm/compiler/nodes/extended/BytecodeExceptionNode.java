@@ -43,7 +43,6 @@ import org.graalvm.compiler.nodes.ValueNode;
 import org.graalvm.compiler.nodes.memory.AbstractMemoryCheckpoint;
 import org.graalvm.compiler.nodes.memory.SingleMemoryKill;
 import org.graalvm.compiler.nodes.spi.Lowerable;
-import org.graalvm.compiler.nodes.spi.LoweringTool;
 import jdk.internal.vm.compiler.word.LocationIdentity;
 
 import jdk.vm.ci.meta.JavaKind;
@@ -114,11 +113,6 @@ public final class BytecodeExceptionNode extends AbstractMemoryCheckpoint implem
         return this;
     }
 
-    @Override
-    public void lower(LoweringTool tool) {
-        tool.getLowerer().lower(this, tool);
-    }
-
     public NodeInputList<ValueNode> getArguments() {
         return arguments;
     }
@@ -127,7 +121,9 @@ public final class BytecodeExceptionNode extends AbstractMemoryCheckpoint implem
      * Create a new stateDuring for use by a foreign call.
      */
     public FrameState createStateDuring() {
-        return stateAfter.duplicateModified(graph(), stateAfter.bci, /* rethrowException */ false, /* duringCall */ true,
+        boolean rethrowException = false;
+        boolean duringCall = true;
+        return stateAfter.duplicateModified(graph(), stateAfter.bci, rethrowException, duringCall,
                         JavaKind.Object, null, null);
     }
 

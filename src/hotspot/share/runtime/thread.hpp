@@ -50,9 +50,6 @@
 #include "utilities/exceptions.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
-#ifdef ZERO
-# include "stack_zero.hpp"
-#endif
 #if INCLUDE_JFR
 #include "jfr/support/jfrThreadExtension.hpp"
 #endif
@@ -711,8 +708,16 @@ class Thread: public ThreadShadow {
 
   // Check if address is in the stack mapped to this thread. Used mainly in
   // error reporting (so has to include guard zone) and frame printing.
-  bool is_in_full_stack(address adr) const {
+  // Expects _stack_base to be initialized - checked with assert.
+  bool is_in_full_stack_checked(address adr) const {
     return is_in_stack_range_incl(adr, stack_end());
+  }
+
+  // Like is_in_full_stack_checked but without the assertions as this
+  // may be called in a thread before _stack_base is initialized.
+  bool is_in_full_stack(address adr) const {
+    address stack_end = _stack_base - _stack_size;
+    return _stack_base > adr && adr >= stack_end;
   }
 
   // Check if address is in the live stack of this thread (not just for locks).
@@ -1009,6 +1014,7 @@ class JavaThread: public Thread {
   friend class VMStructs;
   friend class JVMCIVMStructs;
   friend class WhiteBox;
+  friend class ThreadsSMRSupport; // to access _threadObj for exiting_threads_oops_do
  private:
   bool           _on_thread_list;                // Is set when this JavaThread is added to the Threads list
   oop            _threadObj;                     // The Java level thread object
@@ -1340,7 +1346,7 @@ class JavaThread: public Thread {
   HandshakeState _handshake;
  public:
   void set_handshake_operation(HandshakeOperation* op) {
-    _handshake.set_operation(this, op);
+    _handshake.set_operation(op);
   }
 
   bool has_handshake() const {
@@ -1348,16 +1354,16 @@ class JavaThread: public Thread {
   }
 
   void handshake_process_by_self() {
-    _handshake.process_by_self(this);
+    _handshake.process_by_self();
   }
 
-  bool handshake_try_process_by_vmThread() {
-    return _handshake.try_process_by_vmThread(this);
+  HandshakeState::ProcessResult handshake_try_process(HandshakeOperation* op) {
+    return _handshake.try_process(op);
   }
 
 #ifdef ASSERT
-  bool is_vmthread_processing_handshake() const {
-    return _handshake.is_vmthread_processing_handshake();
+  Thread* active_handshaker() const {
+    return _handshake.active_handshaker();
   }
 #endif
 
@@ -1565,12 +1571,12 @@ class JavaThread: public Thread {
 #endif // INCLUDE_JVMCI
 
   // Exception handling for compiled methods
-  oop      exception_oop() const                 { return _exception_oop; }
+  oop      exception_oop() const;
   address  exception_pc() const                  { return _exception_pc; }
   address  exception_handler_pc() const          { return _exception_handler_pc; }
   bool     is_method_handle_return() const       { return _is_method_handle_return == 1; }
 
-  void set_exception_oop(oop o)                  { (void)const_cast<oop&>(_exception_oop = o); }
+  void set_exception_oop(oop o);
   void set_exception_pc(address a)               { _exception_pc = a; }
   void set_exception_handler_pc(address a)       { _exception_handler_pc = a; }
   void set_is_method_handle_return(bool value)   { _is_method_handle_return = value ? 1 : 0; }
@@ -1992,13 +1998,10 @@ class JavaThread: public Thread {
   bool has_pending_popframe()                         { return (popframe_condition() & popframe_pending_bit) != 0; }
   bool popframe_forcing_deopt_reexecution()           { return (popframe_condition() & popframe_force_deopt_reexecution_bit) != 0; }
   void clear_popframe_forcing_deopt_reexecution()     { _popframe_condition &= ~popframe_force_deopt_reexecution_bit; }
-#ifdef CC_INTERP
-  bool pop_frame_pending(void)                        { return ((_popframe_condition & popframe_pending_bit) != 0); }
-  void clr_pop_frame_pending(void)                    { _popframe_condition = popframe_inactive; }
+
   bool pop_frame_in_process(void)                     { return ((_popframe_condition & popframe_processing_bit) != 0); }
   void set_pop_frame_in_process(void)                 { _popframe_condition |= popframe_processing_bit; }
   void clr_pop_frame_in_process(void)                 { _popframe_condition &= ~popframe_processing_bit; }
-#endif
 
   int frames_to_pop_failed_realloc() const            { return _frames_to_pop_failed_realloc; }
   void set_frames_to_pop_failed_realloc(int nb)       { _frames_to_pop_failed_realloc = nb; }
@@ -2023,9 +2026,11 @@ class JavaThread: public Thread {
 
   // Used by the interpreter in fullspeed mode for frame pop, method
   // entry, method exit and single stepping support. This field is
-  // only set to non-zero by the VM_EnterInterpOnlyMode VM operation.
-  // It can be set to zero asynchronously (i.e., without a VM operation
-  // or a lock) so we have to be very careful.
+  // only set to non-zero at a safepoint or using a direct handshake
+  // (see EnterInterpOnlyModeClosure).
+  // It can be set to zero asynchronously to this threads execution (i.e., without
+  // safepoint/handshake or a lock) so we have to be very careful.
+  // Accesses by other threads are synchronized using JvmtiThreadState_lock though.
   int               _interp_only_mode;
 
  public:

@@ -24,11 +24,10 @@
 
 /*
  * @test TestWrongArrayMember
- * @key gc
  * @requires vm.gc.Shenandoah & !vm.graal.enabled
  *
- * @run main/othervm -Xmx128m -XX:+UnlockExperimentalVMOptions -XX:+UseShenandoahGC                                TestWrongArrayMember
- * @run main/othervm -Xmx128m -XX:+UnlockExperimentalVMOptions -XX:+UseShenandoahGC -XX:ShenandoahGCMode=traversal TestWrongArrayMember
+ * @run main/othervm -Xmx128m -XX:+UnlockExperimentalVMOptions -XX:+UseShenandoahGC                         TestWrongArrayMember
+ * @run main/othervm -Xmx128m -XX:+UnlockExperimentalVMOptions -XX:+UseShenandoahGC -XX:ShenandoahGCMode=iu TestWrongArrayMember
  */
 
 public class TestWrongArrayMember {

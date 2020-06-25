@@ -112,58 +112,6 @@ AC_DEFUN_ONCE([HOTSPOT_SETUP_JVM_VARIANTS],
 ])
 
 ###############################################################################
-# Check if gtest should be built
-#
-AC_DEFUN_ONCE([HOTSPOT_ENABLE_DISABLE_GTEST],
-[
-  AC_ARG_ENABLE([hotspot-gtest], [AS_HELP_STRING([--disable-hotspot-gtest],
-      [Disables building of the Hotspot unit tests @<:@enabled@:>@])])
-
-  GTEST_AVAILABLE=true
-
-  AC_MSG_CHECKING([if Hotspot gtest test source is present])
-  if test -e "${TOPDIR}/test/hotspot/gtest"; then
-    AC_MSG_RESULT([yes])
-  else
-    AC_MSG_RESULT([no, cannot run gtest])
-    GTEST_AVAILABLE=false
-  fi
-
-  # On solaris, we also must have the libstlport.so.1 library, setup in
-  # LIB_SETUP_LIBRARIES.
-  if test "x$OPENJDK_TARGET_OS" = "xsolaris"; then
-    if test "x$STLPORT_LIB" = "x"; then
-      GTEST_AVAILABLE=false
-    fi
-  fi
-
-  AC_MSG_CHECKING([if Hotspot gtest unit tests should be built])
-  if test "x$enable_hotspot_gtest" = "xyes"; then
-    if test "x$GTEST_AVAILABLE" = "xtrue"; then
-      AC_MSG_RESULT([yes, forced])
-      BUILD_GTEST="true"
-    else
-      AC_MSG_ERROR([Cannot build gtest with missing dependencies])
-    fi
-  elif test "x$enable_hotspot_gtest" = "xno"; then
-    AC_MSG_RESULT([no, forced])
-    BUILD_GTEST="false"
-  elif test "x$enable_hotspot_gtest" = "x"; then
-    if test "x$GTEST_AVAILABLE" = "xtrue"; then
-      AC_MSG_RESULT([yes])
-      BUILD_GTEST="true"
-    else
-      AC_MSG_RESULT([no])
-      BUILD_GTEST="false"
-    fi
-  else
-    AC_MSG_ERROR([--enable-gtest must be either yes or no])
-  fi
-
-  AC_SUBST(BUILD_GTEST)
-])
-
-###############################################################################
 # Misc hotspot setup that does not fit elsewhere.
 #
 AC_DEFUN_ONCE([HOTSPOT_SETUP_MISC],
@@ -175,6 +123,15 @@ AC_DEFUN_ONCE([HOTSPOT_SETUP_MISC],
     HOTSPOT_TARGET_CPU_ARCH=zero
   fi
 
+  AC_ARG_WITH([hotspot-build-time], [AS_HELP_STRING([--with-hotspot-build-time],
+  [timestamp to use in hotspot version string, empty for on-the-fly @<:@empty@:>@])])
+
+  if test "x$with_hotspot_build_time" != x; then
+    HOTSPOT_BUILD_TIME="$with_hotspot_build_time"
+  fi
+  AC_SUBST(HOTSPOT_BUILD_TIME)
+
+
   # Override hotspot cpu definitions for ARM platforms
   if test "x$OPENJDK_TARGET_CPU" = xarm; then
     HOTSPOT_TARGET_CPU=arm_32
@@ -183,4 +140,7 @@ AC_DEFUN_ONCE([HOTSPOT_SETUP_MISC],
 
   # --with-cpu-port is no longer supported
   UTIL_DEPRECATED_ARG_WITH(with-cpu-port)
+
+  # in jdk15 hotspot-gtest was replaced with --with-gtest
+  UTIL_DEPRECATED_ARG_ENABLE(hotspot-gtest)
 ])

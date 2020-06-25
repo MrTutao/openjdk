@@ -25,7 +25,6 @@
 /*
  * @test TestVerifyJCStress
  * @summary Tests that we pass at least one jcstress-like test with all verification turned on
- * @key gc
  * @requires vm.gc.Shenandoah & !vm.graal.enabled
  * @modules java.base/jdk.internal.misc
  *          java.management
@@ -44,7 +43,6 @@
 /*
  * @test TestVerifyJCStress
  * @summary Tests that we pass at least one jcstress-like test with all verification turned on
- * @key gc
  * @requires vm.gc.Shenandoah & !vm.graal.enabled
  * @modules java.base/jdk.internal.misc
  *          java.management
@@ -63,13 +61,12 @@
 /*
  * @test TestVerifyJCStress
  * @summary Tests that we pass at least one jcstress-like test with all verification turned on
- * @key gc
  * @requires vm.gc.Shenandoah & !vm.graal.enabled
  * @modules java.base/jdk.internal.misc
  *          java.management
  *
  * @run main/othervm -Xmx1g -Xms1g -XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions
- *      -XX:+UseShenandoahGC -XX:ShenandoahGCMode=traversal
+ *      -XX:+UseShenandoahGC -XX:ShenandoahGCMode=iu
  *      -XX:+ShenandoahVerify -XX:+IgnoreUnrecognizedVMOptions -XX:+ShenandoahVerifyOptoBarriers
  *      TestVerifyJCStress
  */
